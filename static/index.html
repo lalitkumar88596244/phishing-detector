@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Phishing Detector</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jsqr/1.4.0/jsQR.js"></script>
+<style>
+:root{
+  --bg1:#1e3c72;
+  --bg2:#2a5298;
+  --card-bg:#fff;
+  --text:#000;
+  --sub-text:#666;
+  --result-bg:#f8f9fa;
+  --history-bg:#f8f9fa;
+  --history-hover:#eef1f4;
+  --border:#eee;
+}
+body.dark{
+  --bg1:#0d1117;
+  --bg2:#161b22;
+  --card-bg:#1e242c;
+  --text:#e6edf3;
+  --sub-text:#9aa5b1;
+  --result-bg:#252c36;
+  --history-bg:#252c36;
+  --history-hover:#2d3542;
+  --border:#333;
+}
+
+body{
+ margin:0;
+ font-family:Arial,sans-serif;
+ background:linear-gradient(135deg,var(--bg1),var(--bg2));
+ transition:background .3s ease;
+}
+.container{
+ width:90%;
+ max-width:700px;
+ margin:40px auto;
+ background:var(--card-bg);
+ color:var(--text);
+ padding:25px;
+ border-radius:15px;
+ box-shadow:0 10px 25px rgba(0,0,0,.2);
+ transition:background .3s ease, color .3s ease;
+}
+
+.top-bar{ display:flex; justify-content:flex-end; }
+.mode-btn{
+  background:none; border:1px solid var(--sub-text); color:var(--text);
+  padding:6px 12px; border-radius:20px; font-size:13px; cursor:pointer;
+}
+
+.input-row{ display:flex; gap:8px; }
+input{
+  flex:1; padding:12px; border:1px solid #ccc; border-radius:6px;
+  background:var(--card-bg); color:var(--text);
+}
+button{
+ padding:12px 20px; background:#1565c0; color:white; border:none;
+ border-radius:6px; cursor:pointer; white-space:nowrap;
+}
+button:hover{background:#0d47a1;}
+.paste-btn{ background:#6c757d; padding:12px 14px; }
+.paste-btn:hover{background:#5a6268;}
+
+.qr-row{ margin-top:10px; }
+.qr-btn-full{
+  width:100%; background:#6f42c1; padding:12px 20px;
+  display:flex; align-items:center; justify-content:center; gap:8px;
+}
+.qr-btn-full:hover{background:#59339d;}
+
+/* 3-way risk lights */
+.lights{
+ display:flex;
+ gap:14px;
+ justify-content:center;
+ align-items:center;
+ margin:18px 0;
+}
+.light-wrap{
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:4px;
+}
+.light{
+ width:22px;
+ height:22px;
+ border-radius:50%;
+ background:#ddd;
+ opacity:0.25;
+ transition:all .3s ease;
+}
+.light.green.active{background:#28a745; opacity:1; box-shadow:0 0 14px #28a745;}
+.light.yellow.active{background:#ffc107; opacity:1; box-shadow:0 0 14px #ffc107;}
+.light.red.active{background:#dc3545; opacity:1; box-shadow:0 0 14px #dc3545;}
+.light-label{
+  font-size:11px;
+  color:var(--sub-text);
+}
+
+#result{
+ margin-top:20px; padding:20px; border-radius:12px;
+ background:var(--result-bg); border-left:5px solid #2563eb;
+ box-shadow:0 4px 10px rgba(0,0,0,.1); line-height:1.8;
+ display:none; color:var(--text);
+}
+
+.risk-tag{
+  display:inline-block;
+  font-size:12px;
+  font-weight:bold;
+  padding:4px 10px;
+  border-radius:100px;
+  margin-left:10px;
+  vertical-align:middle;
+}
+.risk-tag.low{background:#d4edda; color:#28a745;}
+.risk-tag.medium{background:#fff3cd; color:#b8860b;}
+.risk-tag.high{background:#f8d7da; color:#dc3545;}
+
+.info-grid{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:10px 20px;
+  margin:14px 0;
+  font-size:13px;
+}
+.info-grid .label{color:var(--sub-text);}
+.info-grid .value{font-weight:bold; word-break:break-all;}
+
+.action-box{
+  margin-top:14px;
+  padding:12px 14px;
+  border-radius:8px;
+  font-size:14px;
+  font-weight:bold;
+}
+.action-box.low{background:#d4edda; color:#155724;}
+.action-box.medium{background:#fff3cd; color:#856404;}
+.action-box.high{background:#f8d7da; color:#721c24;}
+
+.bar-track{
+ height:8px; border-radius:100px; background:#e9ecef;
+ overflow:hidden; margin-top:4px;
+}
+.bar-fill{ height:100%; border-radius:100px; transition:width .5s ease; }
+
+.reasons{ margin-top:18px; padding-top:14px; border-top:1px dashed var(--border); }
+.reasons h4{margin:0 0 8px; font-size:14px; color:var(--sub-text);}
+.reasons ul{margin:0; padding-left:20px;}
+.reasons li{font-size:14px; margin-bottom:6px;}
+.reasons li.flag{color:#dc3545;}
+.reasons li.ok{color:#28a745;}
+
+.copy-btn{ margin-top:16px; background:#495057; font-size:13px; padding:8px 14px; }
+.copy-btn:hover{background:#343a40;}
+
+#history{ margin-top:22px; padding-top:14px; border-top:1px solid var(--border); }
+#history h4{
+ margin:0 0 10px; font-size:14px; color:var(--sub-text);
+ display:flex; justify-content:space-between; align-items:center;
+}
+.clear-btn{
+ background:none; color:#dc3545; padding:0; font-size:12px;
+ text-decoration:underline; cursor:pointer;
+}
+.history-item{
+ display:flex; justify-content:space-between; align-items:center;
+ padding:8px 10px; border-radius:8px; background:var(--history-bg);
+ margin-bottom:6px; font-size:13px; cursor:pointer;
+}
+.history-item:hover{background:var(--history-hover);}
+.history-url{
+ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:70%;
+}
+.history-badge{ font-size:11px; font-weight:bold; padding:3px 8px; border-radius:100px; }
+.history-badge.legit{background:#d4edda; color:#28a745;}
+.history-badge.phishing{background:#f8d7da; color:#dc3545;}
+.empty-history{ font-size:13px; color:var(--sub-text); text-align:center; padding:10px 0; }
+
+#qrModal{
+  display:none; position:fixed; inset:0; background:rgba(0,0,0,.7);
+  z-index:999; align-items:center; justify-content:center;
+}
+#qrModal.active{display:flex;}
+.qr-box{
+  background:var(--card-bg); color:var(--text); padding:20px;
+  border-radius:14px; width:90%; max-width:400px; text-align:center;
+}
+#qrVideo{ width:100%; border-radius:10px; margin:12px 0; background:#000; }
+.qr-close{ background:#dc3545; margin-top:6px; }
+.qr-close:hover{background:#b02a37;}
+.qr-status{ font-size:13px; color:var(--sub-text); }
+</style>
+</head>
+<body>
+<div class="container">
+
+<div class="top-bar">
+  <button class="mode-btn" onclick="toggleDarkMode()" id="modeBtn">🌙 Dark Mode</button>
+</div>
+
+<h1 style="text-align:center;">AI Phishing Detector</h1>
+<p style="text-align:center; color:var(--sub-text); margin-top:-10px; margin-bottom:20px;">
+AI Powered Machine Learning URL Scanner
+</p>
+
+<div class="lights">
+ <div class="light-wrap">
+   <div class="light green" id="lightGreen"></div>
+   <span class="light-label">Low</span>
+ </div>
+ <div class="light-wrap">
+   <div class="light yellow" id="lightYellow"></div>
+   <span class="light-label">Medium</span>
+ </div>
+ <div class="light-wrap">
+   <div class="light red" id="lightRed"></div>
+   <span class="light-label">High</span>
+ </div>
+</div>
+
+<div class="input-row">
+<input id="url" placeholder="Enter URL">
+<button class="paste-btn" onclick="pasteUrl()" title="Paste from clipboard">📋</button>
+<button onclick="check()">Check</button>
+</div>
+
+<div class="qr-row">
+  <button class="qr-btn-full" onclick="openQrScanner()">📷 Scan QR Code</button>
+</div>
+
+<div id="result"></div>
+
+<div id="history">
+ <h4>Recent Scans <button class="clear-btn" onclick="clearHistory()">Clear</button></h4>
+ <div id="historyList"><p class="empty-history">No scans yet</p></div>
+</div>
+
+</div>
+
+<div id="qrModal">
+  <div class="qr-box">
+    <h3 style="margin-top:0;">Scan QR Code</h3>
+    <video id="qrVideo" autoplay playsinline></video>
+    <canvas id="qrCanvas" style="display:none;"></canvas>
+    <p class="qr-status" id="qrStatus">Point your camera at a QR code…</p>
+    <button class="qr-close" onclick="closeQrScanner()">Cancel</button>
+  </div>
+</div>
+
+<footer style="text-align:center; margin-top:25px; color:white; font-size:14px;">
+    © 2026 AI Phishing Detector | Developed by Lalit Kumar
+</footer>
+
+<script>
+
+let scanHistory = [];
+let lastResultText = "";
+let qrStream = null;
+let qrScanInterval = null;
+
+function toggleDarkMode(){
+  document.body.classList.toggle("dark");
+  const btn = document.getElementById("modeBtn");
+  btn.textContent = document.body.classList.contains("dark") ? "☀️ Light Mode" : "🌙 Dark Mode";
+}
+
+async function pasteUrl(){
+  try{
+    const text = await navigator.clipboard.readText();
+    document.getElementById("url").value = text;
+  }catch(e){
+    alert("Could not read clipboard. Please paste manually.");
+  }
+}
+
+async function openQrScanner(){
+  const modal = document.getElementById("qrModal");
+  const video = document.getElementById("qrVideo");
+  const status = document.getElementById("qrStatus");
+  modal.classList.add("active");
+  status.textContent = "Point your camera at a QR code…";
+
+  try{
+    qrStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+    video.srcObject = qrStream;
+    const canvas = document.getElementById("qrCanvas");
+    const ctx = canvas.getContext("2d");
+
+    qrScanInterval = setInterval(() => {
+      if(video.readyState === video.HAVE_ENOUGH_DATA){
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const code = jsQR(imageData.data, imageData.width, imageData.height);
+        if(code){
+          document.getElementById("url").value = code.data;
+          status.textContent = "QR code found ✔️";
+          closeQrScanner();
+        }
+      }
+    }, 300);
+  }catch(e){
+    status.textContent = "Camera access denied or unavailable.";
+  }
+}
+
+function closeQrScanner(){
+  const modal = document.getElementById("qrModal");
+  modal.classList.remove("active");
+  if(qrScanInterval) clearInterval(qrScanInterval);
+  if(qrStream){
+    qrStream.getTracks().forEach(track => track.stop());
+    qrStream = null;
+  }
+}
+
+function getReasons(url){
+  const reasons = [];
+  let lower = url.toLowerCase();
+
+  if(!lower.startsWith("https://")){
+    reasons.push({text:"URL does not use HTTPS (no secure connection)", flag:true});
+  } else {
+    reasons.push({text:"Uses HTTPS", flag:false});
+  }
+
+  const keywords = ["verify","login","secure","account","update","confirm","bank","signin","password","unlock"];
+  const found = keywords.filter(k => lower.includes(k));
+  if(found.length){
+    reasons.push({text:"Contains suspicious keyword(s): " + found.join(", "), flag:true});
+  }
+
+  try{
+    const host = new URL(url).hostname;
+    const hyphenCount = (host.match(/-/g) || []).length;
+    if(hyphenCount >= 1){
+      reasons.push({text:"Domain contains hyphens (" + host + ")", flag:true});
+    }
+    if(/^\d{1,3}(\.\d{1,3}){3}$/.test(host)){
+      reasons.push({text:"Domain is a raw IP address instead of a name", flag:true});
+    }
+    const dotCount = (host.match(/\./g) || []).length;
+    if(dotCount > 3){
+      reasons.push({text:"Unusually long/complex subdomain chain (" + host + ")", flag:true});
+    }
+    if(url.length > 75){
+      reasons.push({text:"URL is unusually long (" + url.length + " characters)", flag:true});
+    }
+  }catch(e){
+    reasons.push({text:"Could not fully parse URL structure", flag:true});
+  }
+
+  return reasons;
+}
+
+// Decide risk tier from probability
+function getRiskTier(prob){
+  if(prob < 0.34) return { level:"low", label:"Low Risk", action:"✅ Looks safe. No unusual signals detected." };
+  if(prob < 0.67) return { level:"medium", label:"Medium Risk", action:"⚠️ Be cautious. Verify the sender/source before entering any info." };
+  return { level:"high", label:"High Risk", action:"🚫 Do not enter passwords or personal info on this site." };
+}
+
+function setLights(level){
+  document.getElementById("lightGreen").classList.remove("active");
+  document.getElementById("lightYellow").classList.remove("active");
+  document.getElementById("lightRed").classList.remove("active");
+  if(level === "low") document.getElementById("lightGreen").classList.add("active");
+  if(level === "medium") document.getElementById("lightYellow").classList.add("active");
+  if(level === "high") document.getElementById("lightRed").classList.add("active");
+}
+
+function renderHistory(){
+  const listEl = document.getElementById("historyList");
+  if(scanHistory.length === 0){
+    listEl.innerHTML = '<p class="empty-history">No scans yet</p>';
+    return;
+  }
+  listEl.innerHTML = scanHistory.slice(0,8).map(item => `
+    <div class="history-item" onclick="document.getElementById('url').value='${item.url.replace(/'/g,"\\'")}'">
+      <span class="history-url">${item.url}</span>
+      <span class="history-badge ${item.verdict === 'legit' ? 'legit' : 'phishing'}">${item.verdict.toUpperCase()}</span>
+    </div>
+  `).join("");
+}
+
+function clearHistory(){
+  scanHistory = [];
+  renderHistory();
+}
+
+function copyResult(){
+  navigator.clipboard.writeText(lastResultText).then(()=>{
+    const btn = document.getElementById("copyBtn");
+    const old = btn.textContent;
+    btn.textContent = "Copied!";
+    setTimeout(()=>btn.textContent = old, 1500);
+  });
+}
+
+async function check() {
+ const url = document.getElementById("url").value.trim();
+ const resultEl = document.getElementById("result");
+
+ if(!url){
+   alert("Please enter a URL");
+   return;
+ }
+
+ resultEl.style.display = "none";
+
+ const res = await fetch("/api/check", {
+   method: "POST",
+   headers: {"Content-Type": "application/json"},
+   body: JSON.stringify({ url })
+ });
+ const data = await res.json();
+
+ const prob = Number(data.phishing_probability) || 0;
+ const conf = Number(data.confidence) || 0;
+ const isSafe = data.verdict === "legit";
+ const color = isSafe ? "#28a745" : "#dc3545";
+ const icon = isSafe ? "✅" : "❌";
+
+ const tier = getRiskTier(prob);
+ setLights(tier.level);
+
+ const probPct = (prob*100).toFixed(2);
+ const confPct = (conf*100).toFixed(2);
+
+ let domain = "-";
+ try{ domain = new URL(url).hostname; }catch(e){}
+
+ const scanTime = new Date().toLocaleString();
+
+ const reasons = getReasons(url);
+ const reasonsHtml = reasons.map(r =>
+   `<li class="${r.flag ? 'flag':'ok'}">${r.flag ? '⚠️' : '✔️'} ${r.text}</li>`
+ ).join("");
+
+ resultEl.style.borderLeftColor = color;
+ resultEl.style.display = "block";
+ resultEl.innerHTML = `
+   <h3 style="color:${color}; margin-top:0;">
+     ${icon} ${data.verdict.toUpperCase()}
+     <span class="risk-tag ${tier.level}">${tier.label}</span>
+   </h3>
+
+   <div class="info-grid">
+     <div><span class="label">Domain:</span><br><span class="value">${domain}</span></div>
+     <div><span class="label">Scanned at:</span><br><span class="value">${scanTime}</span></div>
+   </div>
+
+   <p><b>Confidence:</b> ${confPct}%</p>
+   <div class="bar-track"><div class="bar-fill" style="width:${confPct}%; background:#2563eb;"></div></div>
+
+   <p style="margin-top:14px;"><b>Phishing Probability:</b> ${probPct}%</p>
+   <div class="bar-track"><div class="bar-fill" style="width:${probPct}%; background:${color};"></div></div>
+
+   <div class="action-box ${tier.level}">${tier.action}</div>
+
+   <div class="reasons">
+     <h4>Why this result:</h4>
+     <ul>${reasonsHtml}</ul>
+   </div>
+
+   <button class="copy-btn" id="copyBtn" onclick="copyResult()">📄 Copy result</button>
+ `;
+
+ lastResultText = `URL: ${url}\nDomain: ${domain}\nScanned at: ${scanTime}\nVerdict: ${data.verdict.toUpperCase()} (${tier.label})\nConfidence: ${confPct}%\nPhishing Probability: ${probPct}%\nReasons:\n` +
+   reasons.map(r => `- ${r.text}`).join("\n");
+
+ scanHistory.unshift({url, verdict: data.verdict});
+ renderHistory();
+}
+</script>
+</body>
+</html>
